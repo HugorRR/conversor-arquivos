@@ -1,0 +1,274 @@
+import streamlit as st
+import pandas as pd
+import pdf2docx
+import fitz
+import tempfile
+from docx import Document
+import docx2pdf
+import pythoncom
+import pdfplumber
+from reportlab.lib.pagesizes import letter
+from docx import Document
+from docx2pdf import convert
+import os
+from reportlab.pdfgen import canvas
+
+def converter_pdf_excel(upload_arquivo_pdf):
+    tables = []
+    with pdfplumber.open(upload_arquivo_pdf) as pdf:
+        for page in pdf.pages:
+            table = page.extract_table()
+            if table:
+                tables.append(table)
+    if not tables:
+        st.error("Nenhuma tabela encontrada no PDF.")
+        return None
+
+    with pd.ExcelWriter('output.xlsx') as writer:
+        for i, table in enumerate(tables):
+            df = pd.DataFrame(table[1:], columns=table[0])
+            df.to_excel(writer, sheet_name=f'Sheet_{i+1}', index=False)
+    return 'output.xlsx'
+
+def converter_pdf_docx(upload_arquivo_pdf):
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_pdf:
+        temp_pdf.write(upload_arquivo_pdf.read())
+        temp_pdf_path = temp_pdf.name
+    cv = pdf2docx.Converter(temp_pdf_path)
+    cv.convert('output.docx')
+    return 'output.docx'
+
+def converter_pdf_para_pdfa(upload_arquivo_pdf):
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_pdf:
+        temp_pdf.write(upload_arquivo_pdf.read())
+        temp_pdf_path = temp_pdf.name
+    input_pdf = fitz.open(temp_pdf_path)
+    input_pdf.set_metadata({
+        "producer": "PyMuPDF",
+        "creator": "PyMuPDF",
+        "author": "Author Name",
+        "subject": "Subject",
+        "title": "PDF/A Document",
+        "format": "PDF/A",
+    })
+
+    output_pdf_path = 'output.pdfa'
+    input_pdf.save(output_pdf_path)
+    return output_pdf_path
+
+def converter_docx_para_pdf(upload_arquivo_docx):
+    pythoncom.CoInitialize()
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as temp_docx:
+        temp_docx.write(upload_arquivo_docx.read())
+        temp_docx_path = temp_docx.name
+
+    output_pdf_path = 'output.pdf'
+    docx2pdf.convert(temp_docx_path, output_pdf_path)
+
+    pythoncom.CoUninitialize()
+
+    return output_pdf_path
+
+def converter_docx_para_xlsx(upload_arquivo_docx):
+    document = Document(upload_arquivo_docx)
+    data = [[cell.text for cell in row.cells] for row in document.tables[0].rows]
+    df = pd.DataFrame(data)
+    df.to_excel('output.xlsx', index=False)
+
+    return 'output.xlsx'
+
+def converter_docx_para_pdfa(upload_arquivo_docx):
+    pdf_path = converter_docx_para_pdf(upload_arquivo_docx)
+    input_pdf = fitz.open(pdf_path)
+
+    input_pdf.set_metadata({
+        "producer": "PyMuPDF",
+        "creator": "PyMuPDF",
+        "author": "Author Name",
+        "subject": "Subject",
+        "title": "PDF/A Document",
+        "format": "PDF/A",
+    })
+
+    output_pdf_path = 'output.pdfa'
+    input_pdf.save(output_pdf_path)
+    return output_pdf_path
+
+def converter_xlsx_para_pdf(upload_arquivo_xlsx):
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as temp_docx:
+        temp_docx_path = temp_docx.name
+        
+        df = pd.read_excel(upload_arquivo_xlsx)
+        
+        doc = Document()
+        table = doc.add_table(rows=df.shape[0]+1, cols=df.shape[1])
+        
+        for j in range(df.shape[1]):
+            table.cell(0, j).text = df.columns[j]
+        
+        for i in range(df.shape[0]):
+            for j in range(df.shape[1]):
+                table.cell(i+1, j).text = str(df.iat[i, j])
+        
+        doc.save(temp_docx_path)
+
+    output_pdf_path = 'output.pdf'
+    pythoncom.CoInitialize()  
+    try:
+        convert(temp_docx_path, output_pdf_path) 
+    except Exception as e:
+        print(f"Erro na conversão para PDF: {e}")
+    finally:
+        pythoncom.CoUninitialize() 
+
+    os.remove(temp_docx_path)
+
+    return output_pdf_path
+
+def converter_xlsx_para_docx(upload_arquivo_xlsx):
+    df = pd.read_excel(upload_arquivo_xlsx)
+    doc = Document()
+    t = doc.add_table(df.shape[0]+1, df.shape[1])
+    for j in range(df.shape[-1]):
+        t.cell(0,j).text = df.columns[j]
+    for i in range(df.shape[0]):
+        for j in range(df.shape[-1]):
+            t.cell(i+1,j).text = str(df.values[i,j])
+    doc.save('output.docx')
+
+    return 'output.docx'
+
+def converter_xlsx_para_pdfa(upload_arquivo_xlsx):
+    pdf_path = converter_xlsx_para_pdf(upload_arquivo_xlsx)
+    input_pdf = fitz.open(pdf_path)
+
+    input_pdf.set_metadata({
+        "producer": "PyMuPDF",
+        "creator": "PyMuPDF",
+        "author": "Author Name",
+        "subject": "Subject",
+        "title": "PDF/A Document",
+        "format": "PDF/A",
+    })
+
+    output_pdf_path = 'output.pdfa'
+    input_pdf.save(output_pdf_path)
+    return output_pdf_path
+
+def ui_up_pdf_xlsx():
+    up_pdf_para_xlsx = st.file_uploader("📎 Conversor de PDF para XLSX", type="pdf", key="pdf_to_xlsx")
+    if up_pdf_para_xlsx is not None:
+        barra_progresso = st.progress(0)
+        arquivo_saida = converter_pdf_excel(up_pdf_para_xlsx)
+        if arquivo_saida:
+            barra_progresso.progress(100)
+            st.success("Arquivo convertido com sucesso! 🎉")
+            with open(arquivo_saida, 'rb') as f:
+                st.download_button('Download 💾', f, file_name='output.xlsx')
+
+def ui_up_pdf_docx():
+    up_pdf_para_docx = st.file_uploader("📎 Conversor de PDF para DOCX", type="pdf", key="pdf_to_docx")
+    if up_pdf_para_docx is not None:
+        barra_progresso = st.progress(0)
+        arquivo_saida = converter_pdf_docx(up_pdf_para_docx)
+        barra_progresso.progress(100)
+        st.success("Arquivo convertido com sucesso! 🎉")
+        with open(arquivo_saida, 'rb') as f:
+            st.download_button('Download 💾', f, file_name='output.docx')
+
+def ui_up_pdf_pdfa():
+    up_pdf_para_pdfa = st.file_uploader("📎 Conversor de PDF para PDFA", type="pdf", key="pdf_to_pdfa")
+    if up_pdf_para_pdfa is not None:
+        barra_progresso = st.progress(0)
+        arquivo_saida = converter_pdf_para_pdfa(up_pdf_para_pdfa)
+        barra_progresso.progress(100)
+        st.success("Arquivo convertido com sucesso! 🎉")
+        with open(arquivo_saida, 'rb') as f:
+            st.download_button('Download 💾', f, file_name='output.pdfa')
+
+def ui_up_docx_pdf():
+    up_docx_para_pdf = st.file_uploader("📎 Conversor de DOCX para PDF", type="docx", key="docx_to_pdf")
+    if up_docx_para_pdf is not None:
+        barra_progresso = st.progress(0)
+        arquivo_saida = converter_docx_para_pdf(up_docx_para_pdf)
+        barra_progresso.progress(100)
+        st.success("Arquivo convertido com sucesso! 🎉")
+        with open(arquivo_saida, 'rb') as f:
+            st.download_button('Download 💾', f, file_name='output.pdf')
+
+def ui_up_docx_xslx():
+    up_docx_para_xslx = st.file_uploader("📎 Conversor de DOCX para XLSX", type="docx", key="docx_to_xlsx")
+    if up_docx_para_xslx is not None:
+        barra_progresso = st.progress(0)
+        arquivo_saida = converter_docx_para_xlsx(up_docx_para_xslx)
+        barra_progresso.progress(100)
+        st.success("Arquivo convertido com sucesso! 🎉")
+        with open(arquivo_saida, 'rb') as f:
+            st.download_button('Download 💾', f, file_name='output.xlsx')
+
+def ui_up_docx_pdfa():
+    up_docx_para_pdfa = st.file_uploader("📎 Conversor de DOCX para PDFA", type="docx", key="docx_to_pdfa")
+    if up_docx_para_pdfa is not None:
+        barra_progresso = st.progress(0)
+        arquivo_saida = converter_docx_para_pdfa(up_docx_para_pdfa)
+        barra_progresso.progress(100)
+        st.success("Arquivo convertido com sucesso! 🎉")
+        with open(arquivo_saida, 'rb') as f:
+            st.download_button('Download 💾', f, file_name='output.pdfa')
+
+def ui_up_xslx_pdf():
+    up_xslx_pdf = st.file_uploader("📎 Conversor de XSLX para PDF", type="xlsx", key="xlsx_to_pdf")
+    if up_xslx_pdf is not None:
+        barra_progresso = st.progress(0)
+        arquivo_saida = converter_xlsx_para_pdf(up_xslx_pdf)
+        barra_progresso.progress(100)
+        st.success("Arquivo convertido com sucesso! 🎉")
+        with open(arquivo_saida, 'rb') as f:
+            st.download_button('Download 💾', f, file_name='output.pdf')
+
+def ui_up_xslx_docx():
+    up_xslx_docx = st.file_uploader("📎 Conversor de XSLX para DOCX", type="xlsx", key="xlsx_to_docx")
+    if up_xslx_docx is not None:
+        barra_progresso = st.progress(0)
+        arquivo_saida = converter_xlsx_para_docx(up_xslx_docx)
+        barra_progresso.progress(100)
+        st.success("Arquivo convertido com sucesso! 🎉")
+        with open(arquivo_saida, 'rb') as f:
+            st.download_button('Download 💾', f, file_name='output.docx')
+
+def ui_up_xslx_pdfa():
+    up_xlsx_pdfa = st.file_uploader("📎 Conversor de XSLX para PDFA", type="xlsx", key="xlsx_to_pdfa")
+    if up_xlsx_pdfa is not None:
+        barra_progresso = st.progress(0)
+        arquivo_saida = converter_xlsx_para_pdfa(up_xlsx_pdfa)
+        barra_progresso.progress(0)
+        st.success("Arquivo convertido com sucesso! 🎉")
+        with open(arquivo_saida, 'rb') as f:
+            st.download_button('Download 💾', f, file_name='output.pdfa')
+
+st.set_page_config(page_title="Conversor", page_icon="📂")
+
+def page_conversor():
+    st.header('📂 CONVERSOR DE ARQUIVOS', divider=True)
+    tab1, tab2, tab3 = st.tabs(['PDF','DOCX', 'XLSX'])
+    with tab1:
+        ui_up_pdf_xlsx()
+        ui_up_pdf_docx()
+        ui_up_pdf_pdfa()
+    with tab2:
+        ui_up_docx_pdf()
+        ui_up_docx_xslx()
+        ui_up_docx_pdfa()
+    with tab3:
+        ui_up_xslx_pdf()
+        ui_up_xslx_docx()
+        ui_up_xslx_pdfa()
+
+def main():
+    if 'logged_in' not in st.session_state or not st.session_state.logged_in:
+        return
+    page_conversor()
+
+if __name__ == '__main__':
+    main()
