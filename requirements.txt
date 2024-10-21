@@ -4,7 +4,7 @@ pdf2docx==0.5.8
 PyMuPDF==1.24.12
 python-docx==1.1.2
 docx2pdf==0.1.8
-pywin32==pywin32
+pywin32==308
 pdfplumber==0.11.4
 reportlab==4.2.5
 openpyxl==3.1.5
