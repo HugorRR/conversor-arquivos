@@ -5,13 +5,13 @@ import fitz
 import tempfile
 from docx import Document
 import docx2pdf
-import pythoncom
 import pdfplumber
 from reportlab.lib.pagesizes import letter
 from docx import Document
 from docx2pdf import convert
 import os
 from reportlab.pdfgen import canvas
+from fpdf import FPDF
 
 def converter_pdf_excel(upload_arquivo_pdf):
     tables = []
@@ -57,18 +57,21 @@ def converter_pdf_para_pdfa(upload_arquivo_pdf):
     return output_pdf_path
 
 def converter_docx_para_pdf(upload_arquivo_docx):
-    pythoncom.CoInitialize()
-
     with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as temp_docx:
         temp_docx.write(upload_arquivo_docx.read())
         temp_docx_path = temp_docx.name
-
-    output_pdf_path = 'output.pdf'
-    docx2pdf.convert(temp_docx_path, output_pdf_path)
-
-    pythoncom.CoUninitialize()
-
-    return output_pdf_path
+        output_pdf_path = 'output.pdf'
+        
+        # Abre o arquivo DOCX
+        doc = fitz.open(temp_docx_path)
+        
+        # Salva como PDF
+        doc.save(output_pdf_path)
+        
+        # Fecha o arquivo
+        doc.close()
+        
+        return output_pdf_path
 
 def converter_docx_para_xlsx(upload_arquivo_docx):
     document = Document(upload_arquivo_docx)
@@ -96,35 +99,28 @@ def converter_docx_para_pdfa(upload_arquivo_docx):
     return output_pdf_path
 
 def converter_xlsx_para_pdf(upload_arquivo_xlsx):
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as temp_docx:
-        temp_docx_path = temp_docx.name
-        
-        df = pd.read_excel(upload_arquivo_xlsx)
-        
-        doc = Document()
-        table = doc.add_table(rows=df.shape[0]+1, cols=df.shape[1])
-        
-        for j in range(df.shape[1]):
-            table.cell(0, j).text = df.columns[j]
-        
-        for i in range(df.shape[0]):
-            for j in range(df.shape[1]):
-                table.cell(i+1, j).text = str(df.iat[i, j])
-        
-        doc.save(temp_docx_path)
-
+    df = pd.read_excel(upload_arquivo_xlsx)
     output_pdf_path = 'output.pdf'
-    pythoncom.CoInitialize()  
-    try:
-        convert(temp_docx_path, output_pdf_path) 
-    except Exception as e:
-        print(f"Erro na conversão para PDF: {e}")
-    finally:
-        pythoncom.CoUninitialize() 
 
-    os.remove(temp_docx_path)
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", size = 12)
+
+    # Adiciona cabeçalho
+    for col in df.columns:
+        pdf.cell(40, 10, col, border=1, align='C')
+    pdf.ln(10)
+
+    # Adiciona linhas
+    for row in df.values:
+        for value in row:
+            pdf.cell(40, 10, str(value), border=1, align='C')
+        pdf.ln(10)
+
+    pdf.output(output_pdf_path)
 
     return output_pdf_path
+
 
 def converter_xlsx_para_docx(upload_arquivo_xlsx):
     df = pd.read_excel(upload_arquivo_xlsx)
