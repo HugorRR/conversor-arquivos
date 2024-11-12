@@ -60,9 +60,11 @@ Este projeto é licenciado sob a licença MIT. Consulte o arquivo LICENSE para m
 
 ## 💜 Apoie o Projeto
 Se este projeto te ajudou, considere fazer uma doação:
-
+---
+Me ajude a manter o projeto vivo
 PIX: hugorogerio522@gmail.com
-👨‍💻 Autor
+---
+## 👨‍💻 Autor
 Hugo Néri - GitHub
 
 ## 📧 Contato
