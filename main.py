@@ -247,6 +247,20 @@ def ui_up_xslx_pdfa():
             with open(arquivo_saida, 'rb') as f:
                 st.download_button('Download 💾', f, file_name='output.pdfa')
 
+def update_access_counter():
+    try:
+        with open('access_counter.txt', 'r') as f:
+            count = int(f.read())
+    except FileNotFoundError:
+        count = 0
+
+    count += 1
+
+    with open('access_counter.txt', 'w') as f:
+        f.write(str(count))
+
+    return count
+
 
 def page_conversor():
     st.header('📂 CONVERSOR DE ARQUIVOS', divider=True)
@@ -279,6 +293,10 @@ def sidebar():
 def main():
     st.set_page_config(page_title="Conversor de arquivos", page_icon="📂")
     sidebar()
+
+    access_count = update_access_counter()
+    st.sidebar.markdown(f"👥 Número de acessos: {access_count}")
+    
     page_conversor()
 
 if __name__ == "__main__":
